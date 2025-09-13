@@ -351,27 +351,8 @@ let OAS_TOKobj = {
     "~",
     ":",
     "::",
-    "def",
-    "use",
-    "as",
-    "abstracts",
-    "PROP",
-    "ACTION",
-    "JS",
-    "END",
-    "IMPORT",
-    "AddImport",
-    "@IMPORT",
-    "@AddImport",
-    "STAY_TIME",
-    "LERP_TIME",
-    "BGcolor",
-    "gredientMap",
-    "SCENE",
-    "SUB",
-    "HEADER",
-    "CODE",
-    "PRAMS",
+    "@import",
+    "import",
   ],
   rules: [
     { fn: whitespaceRule, priority: 1100 },
@@ -443,9 +424,18 @@ function defaultTokenizer(code) {
   return tokens;
 }
 
-function create() {
+function create(globalPipeLineMEM) {
   return {
-    defaultTokenizer,
+    defaultTokenizer: function () {
+      if (!globalPipeLineMEM.pipelineData.rawText) {
+        console.warn(
+          "rawText data is invalid",
+          globalPipeLineMEM.pipelineData.rawText
+        );
+        return;
+      }
+      return defaultTokenizer(globalPipeLineMEM.pipelineData.rawText);
+    },
   };
 }
 

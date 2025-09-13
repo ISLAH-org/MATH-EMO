@@ -115,9 +115,18 @@ function handelFuncta(ast) {
   };
 }
 
-function create() {
+function create(globalPipeLineMEM) {
   return {
-    transformAST: translateAST,
+    transformAST: function () {
+      if (!globalPipeLineMEM.pipelineData.parsed) {
+        console.warn(
+          "parsed data is invalid",
+          globalPipeLineMEM.pipelineData.parsed
+        );
+        return;
+      }
+      return translateAST(globalPipeLineMEM.pipelineData.parsed);
+    },
   };
 }
 

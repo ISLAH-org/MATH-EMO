@@ -1,8 +1,17 @@
 function optimize() {}
 
-function create() {
+function create(globalPipeLineMEM) {
   return {
-    optimize,
+    optimize: function () {
+      if (!globalPipeLineMEM.pipelineData.transpiledMath) {
+        console.warn(
+          "transpiled data is invalid",
+          globalPipeLineMEM.pipelineData.transpiledMath
+        );
+        return;
+      }
+      return optimize(globalPipeLineMEM.pipelineData.transpiledMath);
+    },
   };
 }
 

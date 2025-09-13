@@ -31,16 +31,22 @@ async function main(text) {
 
   globalPipeLineMEM.ready.init = true;
 
+  // console.log(!!globalPipeLineMEM.pipelineData.rawText);
+
   // main code
-  pipelineData.tokenized = tokenizer_INS.defaultTokenizer();
-  pipelineData.parsed = parser_INS.parse();
-  pipelineData.transformedAST = astTransformer_INS.transformAST();
-  pipelineData.transpiledMath = astToMath_INS.astToMath();
-  pipelineData.optimizedMath = algebricOptimizer_INS.optimize();
-  pipelineData.code = mathToCode_INS.toCode();
+  globalPipeLineMEM.pipelineData.tokenized = tokenizer_INS.defaultTokenizer();
+  globalPipeLineMEM.pipelineData.parsed = parser_INS.parse();
+  globalPipeLineMEM.pipelineData.transformedAST =
+    astTransformer_INS.transformAST();
+  globalPipeLineMEM.pipelineData.transpiledMath = astToMath_INS.astToMath();
+  globalPipeLineMEM.pipelineData.optimizedMath =
+    algebricOptimizer_INS.optimize();
+  globalPipeLineMEM.pipelineData.code = mathToCode_INS.generateCode();
 
   return globalPipeLineMEM;
 }
 
 // its a test - during dev time
-// main(``);
+main(`
+adrs 5 , 10;
+  `);

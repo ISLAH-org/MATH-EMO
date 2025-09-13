@@ -139,9 +139,18 @@ function getfunctionCall(node, fullTranspile) {
   };
 }
 
-function create() {
+function create(globalPipeLineMEM) {
   return {
-    astToMath: fullTranspileFinal,
+    astToMath: function () {
+      if (!globalPipeLineMEM.pipelineData.transformedAST) {
+        console.warn(
+          "transformedAST data is invalid",
+          globalPipeLineMEM.pipelineData.transformedAST
+        );
+        return;
+      }
+      return fullTranspileFinal(globalPipeLineMEM.pipelineData.transformedAST);
+    },
   };
 }
 
