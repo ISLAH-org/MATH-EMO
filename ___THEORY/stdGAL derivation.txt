@@ -1,0 +1,188 @@
+--- Math ---
+--- HSL = True ---
+
+-----  CHUNKS SYS -----
+-- adds chunks minupolation and makes serialisation of fro and to chunks (chunks being digits which can safely be stored in memory with constant length sgin etc)
+
+bits = 64
+signed = 0
+maxLimit = 2 ^ (bits - signed) + 1
+chunkNumDigits = length(maxLimit)
+chunkLen = chunkNumDigits + 1
+
+
+
+length(n) = equall(0,n)*(1) + NOT(equall(0,n))*abs(floor(log10(abs(n))+1))
+
+isValidInput(n) = 1 - smallerThan(maxLimit, n)
+
+mod(a, b) = a - b * floor(a / b)
+
+logB(x,base) = log(x) / log (base)
+log10(x) = logB(x,10)
+
+
+
+
+
+getDigit(n, k) = mod(floor(n / 10^k) , 10)
+toPositive(number) = abs(number)
+
+getDigits(start, end, n) = mod(floor(n / 10^(length(n) - end - 1)) , 10^(end - start + 1))
+
+setDigit(number, index, newDigit) =
+number
+- mod(floor(number / (10 ^ index)), 10) * (10 ^ index)
++ newDigit * (10 ^ index)
+
+setDigits(digits, index, number) =
+floor(number / 10^(index + floor(log10(digits)) + 1)) * 10^(index + floor(log10(digits)) + 1)
++ digits * 10^index
++ (number mod 10^index)
+
+applyMaxIntLimit(number,maxLimit) = (1-smallerThan(maxLimit, number)) * number
+
+chunkify(number) = equall(number,0) * (3 * 10^(chunkLen-1) ) + (1-equall(number,0)) *  chunkifyMid(applyMaxIntLimit(number,maxLimit))
+
+chunkifyMid(number) = smallerThan(number, 0) * chunkify_sp(toPositive(number), 2) +
+(1-smallerThan(number, 0)) * chunkify_sp(number, 1)
+
+chunkify_sp(number, signer) = setDigit(CAPlast_D_digits(number, chunkNumDigits+1),chunkNumDigits,signer)
+
+CAPlast_D_digits(x, D) = mod(abs(x) , 10^D) * sign(x)
+
+unchunkify (chunk) = (1-equall (getDigit(chunk, chunkLen-1), 3) )* unchunkifyMid(chunk)
+
+unchunkifyMid(chunk) = equall (getDigit(chunk, chunkLen-1), 2) * unchunkifyNeg(chunk) + equall (getDigit(chunk, chunkLen-1), 1) * unchunkifyPos(chunk)
+unchunkifyPos (chunk) = getDigits(chunk, 0, chunkNumDigits)
+unchunkifyNeg (chunk) = -getDigits(chunk, 0, chunkNumDigits)
+getChunk (memory, address) = getDigits(address*chunkLen, chunkLen*address+chunkLen, memory)
+setChunk(chunk,memory,address) = setDigits(chunk, memory, chunkLen*address)
+
+----- Memory System -----
+
+-- each memory cell has two chunks one for value other for ll (link list address to continue)    ll address is relative to support more address 
+-- if the cell is type number   the ll address maps to it self  else its a link list item 
+
+extractCellChunkValue(Cell) = getDigits(0, chunkLen, Cell)
+extractCellChunkLL(Cell) = getDigits(chunkLen, 2 * chunkLen, Cell)
+
+combineCellValueLL (Value, LL) = Value + LL * 10 ^ chunkLen
+
+applyOperationToCell(Cell, operationFN) = combineCellValueLL( chunkify( operationFN ( unchunkify( extractCellChunkValue(Cell)) ) ) , extractCellChunkLL(Cell) )
+
+add(a,b) = a + b 
+sub (a,b) = a - b 
+mul (a, b) = a * b 
+div (a,b) = a / b
+pow (a,b) = a ^ b
+
+getMemoryCell(memory, address) = combineCellValueLL( getChunk(memory, address) , getChunk(memory, address+chunkLen) )
+setMemoryCell(memory, address, cell) = setChunk(extractCellChunkLL(cell), setChunk( extractCellChunkValue(cell), memory, address ),address + chunkLen)
+
+getMemoryCellValue (memory, address) =  extractCellChunkValue(getMemoryCell(memory, address))
+getMemoryCellLL (memory, address) =  extractCellChunkLL(getMemoryCell(memory, address))
+
+-- 1 for sgined inteager; 2 for Linked list item
+getCellType(cell, address) = OR(equall(0, unchunkify( extractCellChunkLL( cell) ) ),equall(-1, unchunkify( extractCellChunkLL( cell) ) )) + NOT(OR(equall(0, unchunkify( extractCellChunkLL( cell) ) ),equall(-1, unchunkify( extractCellChunkLL( cell) ) ))) * 2
+cellIsNumber ( cell, address ) = equ(getCellType(cell, address), 1)
+cellIsLL ( cell, address ) = equ(getCellType(cell, address), 2)
+
+getNextLLaddressABS (cell,address) = unchunkify( extractCellChunkLL( cell) ) + address
+getNextLLaddressREL (cell) = unchunkify( extractCellChunkLL( cell) )
+
+nextLLaddressValid (cell,address, memory) = cellIsLL(getMemoryCell( memory, getNextLLaddressABS(cell, address) ))
+
+cellIsEmpty(memory,address) = equall(0,getMemoryCell(memory,address))
+
+----- Conditions abstraction
+isFasly(cell) = equall(extractCellChunkValue(cell),0)
+isTruthy(cell) = 1 - isFasly(cell)
+constructToBool(a) = round(greaterThan(a,0))
+
+NOT(x) = 1 - x
+AND(x,y) = x * y
+OR(x,y) = x + y - x * y
+NAND(x,y) = 1 - x * y
+NOR(x,y) = 1 - (x + y - x * y)
+XOR(x,y) = (x - y)^2
+XNOR(x,y) = 1 - (x - y)^2
+
+equall (a,b) = 1 - sign(abs(a-b))
+notEquall (a,b) = NOT(equall(a,b))
+smallerThan(a,b) = 0.5 * (sign(b-a) + 1) * (1 - equall(a,b))
+greaterThan(a,b) = smallerThan(b,a)
+greaterThanOrEquall = smallerThan(a,b)
+smallerThanOrEquall(a,b) = 1-greaterThan(a,b)
+
+remainder(a,b) = ( a/b - floor(a/b) ) * b
+qoutient(a,b) = floor (a/b)
+
+----- abstracted memory data stuff
+isPTRcell (cell) = equall(-1, unchunkify( extractCellChunkLL( cell) ) )
+
+cellConstructorOnMemory(memory,address,cv,cll) = setMemoryCell(memory,address,combineCellValueLL(chunkify(cv),chunkify(cll)))
+
+if_condition (bool, execute) = equall(1,constructToBool(bool) )* execute
+else_condition (bool, execute) = equall(0,constructToBool(bool) )* execute
+
+----- IO -----
+--- IO adds system to extract data from memory      it itself does not interact with outside world   but because it is at end like a return statment it is closest
+--- it adds constraints   for example if we know our i/o call gives 0,1 only  we can use a simpler model sometimes etc
+IO_Call (fn, pramsValue, constraints) = constraints(fn(pramsValue))
+
+--- Various Constraint io fns to be used ---
+
+ioConstraintsBlackBox(a) = a
+ioConstraintsBinaryData(a) = isTruthy(a)
+ioConstraintsSginedInteagers(a) = floor(a)
+ioConstraintsUnsginedInteagers(a) = abs(floor(a))
+ioConstraintsUniByte(a) = applyMaxIntLimit(ioConstraintsUnsginedInteagers(a),2^8)
+ioConstraintsBiByte(a) = applyMaxIntLimit(ioConstraintsUnsginedInteagers(a),2^16)
+ioConstraintsTetraByte(a) = applyMaxIntLimit(ioConstraintsUnsginedInteagers(a),2^32)
+ioConstraintsOctaByte(a) = applyMaxIntLimit(ioConstraintsUnsginedInteagers(a),2^64)
+ioConstraintsVMmeMaxByte(a) = applyMaxIntLimit(ioConstraintsUnsginedInteagers(a),maxLimit)
+noOutput() = 0
+noOutputLinear(x) = x
+noOutputLinear2(x,y) = x
+mem(memory,address) = unchunkify(getMemoryCellValue(memory, address))
+memLL(memory,address) = unchunkify(getMemoryCellLL(memory, address))
+memRaw(memory,address) = unchunkify(getMemoryCell(memory, address))
+
+---  lls gal (low level syntax gal code)  as pure math becomes verbose now
+as the gal parser progresses we will have a fully gal only code ---
+
+function while (condition, code){
+  if (condition()) {
+    while(condition, code)
+  }
+}
+
+function for(init,condition,then,code){
+  init(memory);
+  if (condition()) {
+    then(memory);
+    for (memory,noOutputLinear,condition, code)
+  }
+  noOutputLinear()
+}
+     
+     
+function return(mem, addressMem){
+     
+  function _0_returnLoopCondition() {
+    var 101 = (NOT(cellIsEmpty(memory, mem(memory, 4))));
+    mem(memory, 101)
+  }
+     
+  function _1_returnLoopCode() {
+    var 3 = (cellConstructorOnMemory(mem(memory, 3), mem(memory, 4), mem(memory, 1), mem(memory, 4)));
+    var 4 = (mem(memory, 4) + 1);
+  }
+  
+  var 0 = (-1);
+  var 3 = 0;
+  var 4 = 0;
+  while (memory, _0_returnLoopCondition,_1_returnLoopCode );
+  mem(memory, 3);
+}
