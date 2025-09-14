@@ -1,5 +1,36 @@
 {
   "dependencies": {
     "peggy": "^5.0.6"
-  }
+  },
+  "name": "math-emo",
+  "description": "MATH-EMO is a node js project to abstract the high level code to asm part, so people can easily create their own programming language, see readme for more details.",
+  "version": "1.0.0",
+  "main": "index.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "tests.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ISLAH-org/MATH-EMO.git"
+  },
+  "keywords": [
+    "ISLAH",
+    "math",
+    "math-emo",
+    "superoptimizer",
+    "super-optimizer",
+    "optimzier",
+    "transpiler",
+    "GAL-backend",
+    "GAL-optimizer",
+    "GAL-super-optimizer",
+    "code-optimizer"
+  ],
+  "author": "Muhammad Ayyan",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "bugs": {
+    "url": "https://github.com/ISLAH-org/MATH-EMO/issues"
+  },
+  "homepage": "https://github.com/ISLAH-org/MATH-EMO#readme"
 }
