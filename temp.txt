@@ -1,0 +1,865 @@
+Implemenet me this parser code function getBoundingContent(tokens = [], i = 0, opening, closing = "}") {
+  let balance = 1;
+  i++;
+  let end = i;
+  while (end < tokens.length && balance > 0) {
+    if (tokens[end].value === opening) {
+      balance++;
+    } else if (tokens[end].value === closing) {
+      balance--;
+    }
+    if (balance > 0) end++;
+  }
+
+  return {
+    start: i,
+    end,
+    closing,
+  };
+}
+
+function parseFunctionCallbacks(tokens, i, fullParser) {
+  /*
+  Syntax:
+  name(pram1 , pram2, ... pramN)  optional ;
+  */
+  let logs = [];
+  let satisfied = false;
+
+  // Check if we have enough tokens
+  if (i >= tokens.length) {
+    logs.push({
+      type: "error",
+      log: "Unexpected end of tokens while parsing function call",
+    });
+    return { logs, satisfied: false };
+  }
+
+  // Get function name
+  let functionName = tokens[i].value;
+  i++;
+
+  if (i >= tokens.length || tokens[i].value !== "(") {
+    logs.push({
+      type: "error",
+      log: "Expected opening parenthesis after function name",
+    });
+    return { logs, satisfied: false };
+  }
+
+  // Get function body using getBoundingContent
+  let content = getBoundingContent(tokens, i, "(", ")");
+
+  let statment = {
+    type: "functionCall",
+    name: functionName,
+    rawTokens: tokens.slice(content.start, content.end + 1),
+    parameters: tokens
+      .slice(content.start, content.end + 1)
+      .map((t) => t.value),
+  };
+
+  satisfied = true;
+
+  return {
+    statments: [statment],
+    logs,
+    satisfied,
+    newI: content.end + 1,
+  };
+}
+
+function parseIfStatments(tokens, i, fullParser) {
+  /*
+Syntax:
+if (condition){
+code
+}
+*/
+
+  let statment = {
+    condition: "alwaysTrue()",
+    code: "doNothing()",
+  };
+
+  let logs = [];
+  // console.log(tokens[i].value !== "if");
+  if (tokens[i].value !== "if" || tokens[i].type !== "identifier") {
+    logs.push({
+      type: "verbose",
+      log:
+        "The token does not start with if, not recognized as a conditional statment, token:" +
+        tokens[i].value +
+        " type:" +
+        tokens[i].type,
+    });
+    return;
+  }
+  // console.log(tokens[i], tokens[i + 1]);
+
+  if (tokens[i + 1].value !== "(" || tokens[i + 1].type !== "token") {
+    logs.push({
+      type: "verbose",
+      log:
+        "The token does not follow if (, not recognized as a conditional statment, token:" +
+        tokens[i + 1].value +
+        " type:" +
+        tokens[i + 1].type,
+    });
+    return;
+  }
+
+  // console.log(tokens[i], tokens[i + 1]);
+  let parsedCondition = parseFunctionCallbacks(tokens, i + 2, fullParser);
+  if (!parsedCondition) {
+    logs.push({
+      type: "verbose",
+      log: `The condition inside the if statment seems invalid ${JSON.stringify(
+        tokens
+      )} starting from ${i}`,
+    });
+  }
+  if (parsedCondition.logs)
+    logs.push({
+      parserFN: parseFunctionCallbacks,
+      ...parsedCondition.logs,
+    });
+  i = parsedCondition.newI;
+
+  statment.condition = parsedCondition.statments[0];
+
+  let code = getBoundingContent(tokens, i, "{", "}");
+  // console.log(code);
+  statment.code = {};
+  statment.code.raw = [...tokens].splice(code.start, code.end);
+  statment.code.ast = fullParser(statment.code.raw);
+
+  logs.push({
+    type: "success",
+    logs: "Successfully transpiled the if condition to the statment",
+  });
+  console.log(statment);
+  return {
+    statments: [statment],
+    logs,
+    newI: i,
+  };
+}
+
+let statmentParsers = [parseIfStatments];
+
+function parseStatment(i, tokens, fullParser) {
+  let failedLogs = [];
+  for (let j = 0; j < statmentParsers.length; j++) {
+    let r = statmentParsers[j](tokens, i, fullParser);
+    if (!r) continue;
+    if (r.logs && !r.satisfied)
+      failedLogs.push({
+        tokenIndex: i,
+        parser: j,
+        parserExact: statmentParsers[j],
+        logs: r.logs,
+      });
+    // console.log(failedLogs);
+    if (r.satisfied)
+      return {
+        failedHistoricalLogs: failedLogs,
+        newI: i + 1,
+        tokens: tokens,
+        ...r,
+      };
+  }
+  return {
+    newI: i + 1,
+    tokens: tokens,
+  };
+}
+function parse(tokens) {
+  let parsedStatments = [];
+  for (let i = 0; i < tokens.length; ) {
+    let r = parseStatment(i, tokens, parse);
+    tokens = r.tokens;
+    i = r.newI;
+    if (r.statments) {
+      parsedStatments.push(...r.statments);
+    }
+  }
+  return parsedStatments;
+}
+
+function create(globalPipeLineMEM) {
+  return {
+    parse: function () {
+      if (!globalPipeLineMEM.pipelineData.tokenized) {
+        console.warn(
+          "tokenized data is invalid",
+          globalPipeLineMEM.pipelineData.tokenized
+        );
+        return;
+      }
+      return parse(globalPipeLineMEM.pipelineData.tokenized);
+    },
+  };
+}
+
+module.exports = { create };
+ rewrite it fully working etc            non regex               heres the documentation of this parsers's syntax 
+There are 3 syntaxes supported by MATH EMO (it is turring complete)
+
+IF you want to know how to use MATH EMO API in node JS check the <a href="#documentation"> documentation section </a>
+
+## AST representations
+
+#### this is quite unstable currently proper usage is a todo
+
+## MATH_EMO SYNTAXES
+
+### Address instruction & processing
+
+In MATH EMO address or `adrs` is a keyword which can be used as a `var statment` but also as a raw address instruction but also to do processing like computation etc
+
+its general syntax is as following
+`adrs address = value`  
+Note that you dont need to define the address or anything
+value is any math positive or negative inteager
+This inteagrer only value is limited because of the `"___THEORY" folder containing "stdGAL derivation.txt"`
+
+for processing you could add () inside values and use it with non number values for example function calls or math expressions etc... (algebra valid and math emo supported)
+
+for example
+
+`adrs address = ( someFunction(pram1, pram2, ..... pramN) )`
+
+or
+
+`adrs address = ( 1 + 2 )`
+
+etc.......
+
+### IF STATMENTS
+
+You can write conditions as shown bellow:
+
+```
+if (condition){
+    code
+}
+```
+
+However there is also a single liner
+
+```
+if (condition) code
+```
+
+The code here can be any valid <a href="#math_emo-syntaxes"> MATH EMO syntaxes </a>
+The Conditions here can be any valid <a href="#conditions"> MATH EMO conditions syntax </a>
+
+### CONDITIONS
+
+You can write conditions for the <a href="#if-statments"> IF statments </a>
+
+It is a simple <a href="#function-calls"> function call </a>
+
+for example
+`aGreaterB()` _note that you will need to implement it_ etc...
+
+### Functions
+
+You can implement MATH EMO functions very easily
+for example
+
+```
+function name (pram1, pram2, ..... pramN){
+   code
+}
+```
+
+The code here can be any valid <a href="#math_emo-syntaxes"> MATH EMO syntaxes </a>
+
+name is any <a href="#names-in-math-emo-script"> MATH EMO valid name </a> for functions
+
+prameters `pram1, pram2, ..... pramN` here are <a href="#function-prameters"> valid functional parmeters </a>
+
+### function calls
+
+In MATH EMO a function call is very basic it is simple as `functionName(pram1, pram2, ..... pramN)`
+functionName is the valid function defined it must follow <a href="#names-in-math-emo-script"> MATH EMO names </a>
+
+The prameters `pram1, pram2, ..... pramN` here must be valid <a href="#function-prameters"> functional parmeters </a>
+
+### function prameters
+
+You can think of prameters as json arrays without the `[`,`]` brackets
+
+for example
+`a,b,c,d,e,f` etc..
+
+its general syntax is
+`pram1, pram2, ..... pramN`
+
+prameters are just simple variables there is no default value etc... there names should be valid <a href="#names-in-math-emo-script"> MATH EMO name </a>
+prameters should end without a trailing comma similar to jsons so `a,b,c`
+is valid but `a,b,c,` isnt valid
+
+### NAMES in MATH EMO script
+
+name is a C/Cpp/JS valid name the basic rule is that it needs to start with alhpabets `[a-zA-Z]` or underscore `[_]` and after that it can contain any alpha-neumeric `[0-9A-Za-z]` or underscore `[_]`
+A full regex for this name can be `[a-zA-Z_][a-zA-Z0-9_]*`
+             its quite a basic one so implement it now         just remeber my tokenizer                heres my tokenizer code (so you understand how tokens are made you may add new rules to the tokenizer but not edit tokenizer's main core code etc                        // Define the Utilities module
+function createUtilities(logs) {
+  return {
+    log: function (data, type) {
+      if (type == "all") {
+        if (!Array.isArray(logs.all)) {
+          logs.all = [];
+        }
+        logs.all.push(data);
+        return data;
+      }
+      if (!Array.isArray(logs[type])) {
+        logs[type] = [];
+      }
+      logs[type].push(data);
+      if (!Array.isArray(logs.all)) {
+        logs.all = [];
+      }
+      logs.all.push(data);
+      return data;
+    },
+    buildTrie: function (hardcodedList) {
+      const root = {};
+      for (const item of hardcodedList) {
+        const val = typeof item === "string" ? item : item.value;
+        const type = typeof item === "string" ? "token" : item.type || "token";
+        let node = root;
+        for (let char of val) {
+          if (!node[char]) node[char] = {};
+          node = node[char];
+        }
+        node._end = { value: val, type: type };
+      }
+      return root;
+    },
+    matchFromTrie: function (trie, str, index) {
+      let node = trie;
+      let lastMatch = null;
+      for (let i = index; i < str.length; i++) {
+        const char = str[i];
+        if (!node[char]) break;
+        node = node[char];
+        if (node._end) {
+          lastMatch = node._end;
+        }
+      }
+      return lastMatch;
+    },
+  };
+}
+
+let Logs = {};
+let Utilities = createUtilities(Logs);
+
+const GlobalCache = (function () {
+  let cache = new Map();
+  Utilities.log("GlobalCache initialized", "info");
+
+  return {
+    get: (key) => {
+      const result = cache.get(key);
+      Utilities.log(
+        `Cache GET: ${key} -> ${result ? "HIT" : "MISS"}`,
+        "verbose"
+      );
+      return result;
+    },
+    set: (key, value) => {
+      Utilities.log(`Cache SET: ${key}`, "verbose");
+      return cache.set(key, value);
+    },
+    has: (key) => {
+      const result = cache.has(key);
+      Utilities.log(`Cache HAS: ${key} -> ${result}`, "verbose");
+      return result;
+    },
+    clear: () => {
+      Utilities.log("Cache cleared", "info");
+      return cache.clear();
+    },
+  };
+})();
+
+// Rule functions for dynamic token matching
+function whitespaceRule(str, index) {
+  const char = str[index];
+  if (char !== " " && char !== "\t" && char !== "\r") return null;
+  let len = 0;
+  while (
+    index + len < str.length &&
+    (str[index + len] === " " ||
+      str[index + len] === "\t" ||
+      str[index + len] === "\r")
+  ) {
+    len++;
+  }
+  return { skip: true, length: len };
+}
+
+function commentRule(str, index) {
+  if (str.substr(index, 2) !== "//") return null;
+  let len = 2;
+  while (index + len < str.length && str[index + len] !== "\n") {
+    len++;
+  }
+  return { skip: true, length: len };
+}
+
+function stringRule(str, index) {
+  const quote = str[index];
+  if (quote !== '"' && quote !== "'") return null;
+  let len = 1;
+  let value = quote;
+  while (index + len < str.length) {
+    const char = str[index + len];
+    if (char === quote) {
+      value += char;
+      len++;
+      break;
+    }
+    if (char === "\\" && index + len + 1 < str.length) {
+      value += char + str[index + len + 1];
+      len += 2;
+    } else {
+      value += char;
+      len++;
+    }
+  }
+  if (len > 1 && str[index + len - 1] === quote) {
+    return { type: "string", value, length: len };
+  }
+  return null; // Unclosed string
+}
+
+function identifierRule(str, index) {
+  const char = str[index];
+  if (
+    !(
+      (char >= "A" && char <= "Z") ||
+      (char >= "a" && char <= "z") ||
+      char === "_"
+    )
+  )
+    return null;
+  let len = 1;
+  while (
+    index + len < str.length &&
+    ((str[index + len] >= "A" && str[index + len] <= "Z") ||
+      (str[index + len] >= "a" && str[index + len] <= "z") ||
+      (str[index + len] >= "0" && str[index + len] <= "9") ||
+      str[index + len] === "_")
+  ) {
+    len++;
+  }
+  const value = str.substr(index, len);
+  return { type: "identifier", value, length: len };
+}
+
+function numberRule(str, index) {
+  const char = str[index];
+  if (!(char >= "0" && char <= "9")) return null;
+  let len = 0;
+  let hasDot = false;
+  while (
+    index + len < str.length &&
+    ((str[index + len] >= "0" && str[index + len] <= "9") ||
+      str[index + len] === ".")
+  ) {
+    if (str[index + len] === ".") {
+      if (hasDot) return null; // More than one dot is invalid
+      hasDot = true;
+    }
+    len++;
+  }
+  const value = str.substr(index, len);
+  return { type: "number", value, length: len };
+}
+
+var create_Tokenizer = function () {
+  Utilities.log("Creating tokenizer", "info");
+
+  function CacheTokenOBJ(tokenOBJ) {
+    Utilities.log("Caching token object", "info");
+    const cacheKey = JSON.stringify(tokenOBJ);
+
+    if (GlobalCache.has(cacheKey)) {
+      Utilities.log("Using cached token object", "info");
+      return GlobalCache.get(cacheKey);
+    }
+
+    Utilities.log("Building new cached token object", "info");
+    let Cached = {
+      rules: [],
+      trie: Utilities.buildTrie(tokenOBJ.hardcoded || []),
+      hardcoded: {},
+    };
+
+    for (const item of tokenOBJ.hardcoded || []) {
+      const val = typeof item === "string" ? item : item.value;
+      const type = typeof item === "string" ? "token" : item.type || "token";
+      Cached.hardcoded[val] = type;
+    }
+
+    for (const rule of tokenOBJ.rules || []) {
+      if (typeof rule === "function") {
+        Cached.rules.push({ fn: rule, priority: 0 });
+        Utilities.log(`Added rule function with priority 0`, "verbose");
+      } else if (rule && typeof rule.fn === "function") {
+        Cached.rules.push(rule);
+        Utilities.log(
+          `Added rule function with priority ${rule.priority || 0}`,
+          "verbose"
+        );
+      }
+    }
+
+    Cached.rules.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    Utilities.log(`Sorted ${Cached.rules.length} rules by priority`, "info");
+
+    GlobalCache.set(cacheKey, Cached);
+    return Cached;
+  }
+
+  const HARDCODED_PRIORITY = 1000;
+
+  function tokenize(str, tokensOBJ) {
+    Utilities.log(`Starting tokenization of string: "${str}"`, "info");
+    let Cache = CacheTokenOBJ(tokensOBJ);
+    let tokens = [];
+    let STRindex = 0;
+    let LOGs = [];
+
+    while (STRindex < str.length) {
+      Utilities.log(
+        `Tokenizing at index ${STRindex}: "${str[STRindex]}"`,
+        "verbose"
+      );
+
+      let bestMatch = null;
+      let bestPri = -Infinity;
+
+      // Check trie match
+      const trieMatch = Utilities.matchFromTrie(Cache.trie, str, STRindex);
+      if (trieMatch) {
+        const match = {
+          type: trieMatch.type,
+          value: trieMatch.value,
+          length: trieMatch.value.length,
+          priority: HARDCODED_PRIORITY,
+        };
+        if (match.priority > bestPri) {
+          bestMatch = match;
+          bestPri = match.priority;
+        }
+      }
+
+      // Check rules
+      for (let rule of Cache.rules) {
+        const result = rule.fn(str, STRindex);
+        if (result) {
+          let pri = rule.priority || 0;
+          if (tokensOBJ.easeFN) {
+            pri = tokensOBJ.easeFN(
+              str,
+              STRindex,
+              STRindex + result.length,
+              result.length,
+              pri
+            );
+          }
+          if (pri > bestPri) {
+            bestMatch = { ...result, priority: pri };
+            bestPri = pri;
+          }
+        }
+      }
+
+      if (bestMatch) {
+        if (bestMatch.skip) {
+          STRindex += bestMatch.length;
+          continue;
+        } else {
+          const token = { type: bestMatch.type, value: bestMatch.value };
+          tokens.push(token);
+          Utilities.log(`Token created: ${JSON.stringify(token)}`, "info");
+          STRindex += bestMatch.length;
+          continue;
+        }
+      }
+
+      // If no match, treat as unknown
+      let chunk = str[STRindex];
+      const unknownToken = { type: "unknown", value: chunk };
+      tokens.push(unknownToken);
+      const warning = "Unrecognized character: " + chunk;
+      LOGs.push({ warn: warning });
+      Utilities.log(warning, "warn");
+      Utilities.log(
+        `Unknown token created: ${JSON.stringify(unknownToken)}`,
+        "warn"
+      );
+      STRindex++;
+    }
+
+    LOGs.push({ info: "tokenization completed" });
+    Utilities.log(
+      `Tokenization completed. Generated ${tokens.length} tokens`,
+      "info"
+    );
+    return { tokens, logs: LOGs };
+  }
+
+  return { tokenize };
+};
+
+let tokenizer = create_Tokenizer();
+
+let OAS_TOKobj = {
+  hardcoded: [
+    { value: "\n", type: "newline" },
+    "!",
+    "@",
+    "#",
+    "$",
+    "%",
+    "^",
+    "&",
+    "*",
+    "(",
+    ")",
+    "-",
+    "_",
+    "=",
+    "+",
+    "{",
+    "}",
+    "[",
+    "]",
+    "|",
+    "\\",
+    ";",
+    "'",
+    '"',
+    "<",
+    ">",
+    ",",
+    ".",
+    "/",
+    "?",
+    "`",
+    "~",
+    ":",
+    // "::",
+    // "@import",
+    // "import",
+    "adrs",
+    "if",
+    "else",
+    "function",
+  ],
+  rules: [
+    { fn: whitespaceRule, priority: 1100 },
+    { fn: commentRule, priority: 1100 },
+    { fn: stringRule, priority: 1100 },
+    { fn: identifierRule, priority: 1100 },
+    { fn: numberRule, priority: 1100 },
+  ],
+};
+
+function cleanTheTokens(tokens) {
+  let cleanedTokens = [];
+  let currentValue = "";
+
+  function determineType(token) {
+    return token.type;
+  }
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.value === " ") {
+      if (currentValue !== "") {
+        cleanedTokens.push({
+          type: determineType(token),
+          value: currentValue,
+        });
+        currentValue = "";
+      }
+      continue;
+    } else if (token.value.length > 1) {
+      if (currentValue !== "") {
+        cleanedTokens.push({
+          type: determineType(token),
+          value: currentValue,
+        });
+        currentValue = "";
+      }
+      cleanedTokens.push(token);
+    } else if (
+      token.value.length === 1 &&
+      /[a-zA-Z0-9_"'`]/.test(token.value)
+    ) {
+      currentValue += token.value;
+    } else {
+      if (currentValue !== "") {
+        cleanedTokens.push({
+          type: determineType(token),
+          value: currentValue,
+        });
+        currentValue = "";
+      }
+      cleanedTokens.push(token);
+    }
+  }
+
+  if (currentValue !== "") {
+    cleanedTokens.push({
+      type: determineType(tokens[tokens.length - 1]),
+      value: currentValue,
+    });
+  }
+
+  return cleanedTokens;
+}
+
+function defaultTokenizer(code) {
+  let tokens = cleanTheTokens(tokenizer.tokenize(code, OAS_TOKobj).tokens);
+  // console.log("TOKENS", JSON.stringify(tokens, null, 2));
+  return tokens;
+}
+
+function create(globalPipeLineMEM) {
+  return {
+    defaultTokenizer: function () {
+      if (!globalPipeLineMEM.pipelineData.rawText) {
+        console.warn(
+          "rawText data is invalid",
+          globalPipeLineMEM.pipelineData.rawText
+        );
+        return;
+      }
+      return defaultTokenizer(globalPipeLineMEM.pipelineData.rawText);
+    },
+  };
+}
+
+module.exports = { create };
+ ideally run your code multiple times before finding best implementation then show me new tokenizer.js and new parser.js codes etc               write final complete full new code        before writing me reponse you can think inside <think> and </think>  if you find you made a mistake you can think again and rewrite a response for me                      there shall be only these basic syntaxes   condition is just a callback no fancy binary unary etc stuff  no var statments etc         just if,else    adrs and functions             functions dont have return statments            also nested functions definations shall be un-nested because we dont support scoping and it will be easier for me to work with  etc...      for a sample      here is the peggy code i used   but not I wana use raw js without regex or parsing lang orignal parser was in peggy it may provide you with how syntax works here start
+  = statements:(varStatement / functionStatement / ifStatement / functionCall)* { return statements; }
+
+varStatement
+  = extraToks "var" extraToks name:varName extraToks "=" extraToks value:DataTypes optionalSemicoln {
+      return { type: "var", name, value };
+    }
+
+DataTypes
+  = Mathexpression / numberDataType / arrDataType / varName / fnName 
+
+arrDataType
+  = "[" extraToks values:(DataTypes (extraToks "," extraToks DataTypes ","?)*)? extraToks "]" {
+      let vals = [];
+      if (values) {
+        vals = [values[0], ...values[1].map(v => v[3])];
+      }
+      return { type: "array", value: vals , rawVal : text()};
+    }
+    
+Mathexpression
+  = "(" expr:innerExpression ")" { return { type:"mathexpr", value: expr }; }
+
+innerExpression
+  = head:([^()]+ / Mathexpression)* {
+  let r = head.flat()
+  let s = "";
+  for (let i = 0; i < r.length; i++){
+  let a = r[i]
+  if (typeof a !== "string"){
+      a = "("+a.value+")"
+  }
+      s = s  + a
+  }
+  return s
+  }
+
+numberDataType
+ = [0-9]+ { return {value: Number(text()), type:"number" } }
+
+functionStatement
+  = extraToks "function" extraToks name:fnName? extraToks "(" prams:functionPrams ")" extraToks "{" extraToks scope:start extraToks "}" extraToks { return { type: "function" , prams , scope, name}; }
+  
+ifCondition
+ = extraToks r:functionCall extraToks {return r}
+ 
+ifBlockP1
+  = extraToks "{" extraToks r:start extraToks "}" extraToks { return r }
+
+ifBlockP2
+  = r:start { return r }
+
+ifBlock
+  = ifBlockP1 / ifBlockP2
+ 
+ifStatementP1
+  = extraToks "if" extraToks "("condition:ifCondition")" extraToks code:ifBlock extraToks { return { type: "if", condition ,code , "else" : ""}; }
+
+ifStatementP2
+ = extraToks "if" extraToks "("condition:ifCondition")" extraToks code:ifBlock extraToks "else" extraToks elseB:ifBlock extraToks { return { type: "if", condition ,code , "else" : elseB}; }
+
+ifStatement = ifStatementP2 / ifStatementP1
+  
+functionPrams
+ = extraToks values:(varName (extraToks "," extraToks varName)*)? extraToks {
+      let vals = [];
+      if (values) {
+        vals = [values[0], ...values[1].map(v => v[3])];
+      }
+      return vals;
+    }
+
+functionCall 
+  = extraToks callName:fnName extraToks "(" prams:functionCallPrams? ")" extraToks optionalSemicoln {
+    return {
+      type: "functionCall",
+      callName,
+      raw : text(),
+      prams: prams || []
+    };
+  }
+
+functionCallPrams
+ = extraToks values:(DataTypes (extraToks "," extraToks DataTypes)*)? extraToks {
+      let vals = [];
+      if (values) {
+        vals = [values[0], ...values[1].map(v => v[3])];
+      }
+      return vals;
+    }
+
+fnName 
+  = [A-Za-z_][A-Za-z0-9_]* { return text(); }
+varName =
+chars: [A-Za-z0-9_]+ { 
+return chars.join("");
+}
+
+extraToks
+ = extraToksP1 
+
+extraToksP1
+  = [ \\t\\r\\n]* { return ""; }
+  
+optionalSemicoln
+ = ";"? extraToks {return "";}          yes this peggy code is trash but thats not the topic  (in previous version we used the var keyword but now switched to adrs keyword)   demo examples function a (b){
+         adrs 2 = (mem(memory, 1) + 5);
+         mem(memory,2);
+     }
+     adrs 1 = 100;
+     adrs 1 = ( a(5) );           etc .......   
