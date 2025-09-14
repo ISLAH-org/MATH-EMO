@@ -2,7 +2,7 @@
   "dependencies": {
     "peggy": "^5.0.6"
   },
-  "name": "math-emo",
+  "name": "@islah/math-emo",
   "description": "MATH-EMO is a node js project to abstract the high level code to asm part, so people can easily create their own programming language, see readme for more details.",
   "version": "1.0.0",
   "main": "index.js",
